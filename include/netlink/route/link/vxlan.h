@@ -79,6 +79,11 @@ extern int	rtnl_link_vxlan_get_l3miss(struct rtnl_link *);
 extern int	rtnl_link_vxlan_enable_l3miss(struct rtnl_link *);
 extern int	rtnl_link_vxlan_disable_l3miss(struct rtnl_link *);
 
+extern int      rtnl_link_vxlan_set_port(struct rtnl_link *, uint16_t);
+extern int      rtnl_link_vxlan_get_port(struct rtnl_link *);
+
+
+
 #ifdef __cplusplus
 }
 #endif

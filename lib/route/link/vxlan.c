@@ -48,6 +48,7 @@
 #define VXLAN_HAS_RSC	(1<<11)
 #define VXLAN_HAS_L2MISS	(1<<12)
 #define VXLAN_HAS_L3MISS	(1<<13)
+#define VXLAN_HAS_PORT          (1<<14)
 
 struct vxlan_info
 {
@@ -55,8 +56,8 @@ struct vxlan_info
 	uint32_t		vxi_group;
 	uint32_t		vxi_link;
 	uint32_t		vxi_local;
-	uint8_t			vxi_ttl;
 	uint8_t			vxi_tos;
+	uint8_t			vxi_ttl;
 	uint8_t			vxi_learning;
 	uint32_t		vxi_ageing;
 	uint32_t		vxi_limit;
@@ -66,6 +67,7 @@ struct vxlan_info
 	uint8_t			vxi_l2miss;
 	uint8_t			vxi_l3miss;
 	uint32_t		vxi_mask;
+	uint16_t		vxi_port;
 };
 
 /** @endcond */
@@ -85,6 +87,7 @@ static struct nla_policy vxlan_policy[IFLA_VXLAN_MAX+1] = {
 	[IFLA_VXLAN_RSC] = { .type = NLA_U8 },
 	[IFLA_VXLAN_L2MISS] = { .type = NLA_U8 },
 	[IFLA_VXLAN_L3MISS] = { .type = NLA_U8 },
+	[IFLA_VXLAN_PORT] = { .type = NLA_U16 },
 };
 
 static int vxlan_alloc(struct rtnl_link *link)
@@ -187,6 +190,12 @@ static int vxlan_parse(struct rtnl_link *link, struct nlattr *data,
 	if (tb[IFLA_VXLAN_L3MISS]) {
 		vxi->vxi_l3miss = nla_get_u8(tb[IFLA_VXLAN_L3MISS]);
 		vxi->vxi_mask |= VXLAN_HAS_L3MISS;
+	}
+
+	
+	if (tb[IFLA_VXLAN_PORT]) {
+		vxi->vxi_port = nla_get_u16(tb[IFLA_VXLAN_PORT]);
+		vxi->vxi_mask |= IFLA_VXLAN_PORT;
 	}
 
 	err = 0;
@@ -318,6 +327,14 @@ static void vxlan_dump_details(struct rtnl_link *link, struct nl_dump_params *p)
 		else
 			nl_dump_line(p, "disabled\n");
 	}
+
+	if (vxi->vxi_mask & VXLAN_HAS_PORT) {
+		nl_dump(p, "      dport ");
+		if (vxi->vxi_port > 0)
+			nl_dump_line(p, "%d\n", ntohs(vxi->vxi_port));
+		else
+			nl_dump_line(p, "%#x\n", ntohs(vxi->vxi_port));
+	}
 }
 
 static int vxlan_clone(struct rtnl_link *dst, struct rtnl_link *src)
@@ -388,6 +405,9 @@ static int vxlan_put_attrs(struct nl_msg *msg, struct rtnl_link *link)
 
 	if (vxi->vxi_mask & VXLAN_HAS_L3MISS)
 		NLA_PUT_U8(msg, IFLA_VXLAN_L3MISS, vxi->vxi_l3miss);
+
+	if (vxi->vxi_mask & VXLAN_HAS_PORT)
+		NLA_PUT_U16(msg, IFLA_VXLAN_PORT, vxi->vxi_port);
 
 	nla_nest_end(msg, data);
 
@@ -1141,6 +1161,44 @@ int rtnl_link_vxlan_disable_l3miss(struct rtnl_link *link)
 {
 	return rtnl_link_vxlan_set_l3miss(link, 0);
 }
+
+/**
+ * Set netlink dport for VXLAN
+ * @arg link		Link object
+ * @arg port		Dst port
+ *
+ * @return 0 on success or a negative error code
+ */
+int rtnl_link_vxlan_set_port(struct rtnl_link *link, uint16_t port)
+{
+	struct vxlan_info *vxi = link->l_info;
+
+	IS_VXLAN_LINK_ASSERT(link);
+
+	vxi->vxi_port = htons(port);
+	vxi->vxi_mask |= VXLAN_HAS_PORT;
+
+	return 0;
+}
+
+/**
+ * Get netlink dport for VXLAN
+ * @arg link		Link object
+ *
+ * @return Status value on success or a negative error code
+ */
+int rtnl_link_vxlan_get_port(struct rtnl_link *link)
+{
+	struct vxlan_info *vxi = link->l_info;
+
+	IS_VXLAN_LINK_ASSERT(link);
+
+	if (!(vxi->vxi_mask & VXLAN_HAS_PORT))
+		return -NLE_AGAIN;
+
+	return vxi->vxi_port;
+}
+
 
 /** @} */
 
